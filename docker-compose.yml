@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: university_chatbot_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongodb_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - chatbot_network
+
+  chatbot_api:
+    build: .
+    container_name: university_chatbot_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017/university_chatbot?authSource=admin
+      - DATABASE_NAME=university_chatbot
+      - SECRET_KEY=your-secret-key-change-this-in-production
+      - DEBUG=False
+    depends_on:
+      - mongodb
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - chatbot_network
+
+  mongo_express:
+    image: mongo-express:latest
+    container_name: university_chatbot_mongo_express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME:  prithevikrishnamurali
+      ME_CONFIG_MONGODB_ADMINPASSWORD: Db@12345678
+      ME_CONFIG_MONGODB_URL: mongodb://prithevikrishnamurali:Db@12345678@mongodb:27017/
+    depends_on:
+      - mongodb
+    networks:
+      - chatbot_network
+
+volumes:
+  mongodb_data:
+
+networks:
+  chatbot_network:
+    driver: bridge
