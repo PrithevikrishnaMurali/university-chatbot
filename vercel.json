@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
+    },
+    {
+      "src": "chatbot_ui.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/chatbot_ui.html"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/main.py"
+    }
+  ],
+  "env": {
+    "MONGODB_URL": "@mongodb_url",
+    "DATABASE_NAME": "@database_name",
+    "DEBUG": "False"
+  },
+  "functions": {
+    "main.py": {
+      "runtime": "python3.11"
+    }
+  }
+}

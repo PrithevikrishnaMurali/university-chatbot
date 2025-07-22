@@ -50,7 +50,7 @@ except LookupError:
 # Configuration
 class Settings:
     MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
-    DATABASE_NAME = os.getenv("DATABASE_NAME", "university_chatbot")
+    DATABASE_NAME = os.getenv("DATABASE_NAME", "University_data")
     SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
     DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
@@ -121,80 +121,109 @@ class ConversationStage(Enum):
     FOLLOW_UP = "follow_up"
     COMPLETED = "completed"
 
-# NLP Engine
+# Enhanced NLP Engine
 class NLPEngine:
     def __init__(self):
         self.lemmatizer = WordNetLemmatizer()
         self.stop_words = set(stopwords.words('english'))
         self.vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
         
-        # Intent patterns
+        # Enhanced field of study patterns - more comprehensive
+        self.field_patterns = {
+            'computer science': ['computer science', 'cs', 'computing', 'software engineering', 'programming', 'coding', 'software development', 'it', 'information technology'],
+            'engineering': ['engineering', 'mechanical engineering', 'electrical engineering', 'civil engineering', 'chemical engineering', 'aerospace engineering', 'biomedical engineering'],
+            'business': ['business', 'management', 'mba', 'business administration', 'commerce', 'marketing', 'finance', 'accounting', 'economics'],
+            'medicine': ['medicine', 'medical', 'doctor', 'physician', 'healthcare', 'nursing', 'pharmacy', 'dentistry', 'veterinary'],
+            'law': ['law', 'legal studies', 'jurisprudence', 'legal', 'lawyer', 'attorney'],
+            'psychology': ['psychology', 'psychologist', 'mental health', 'behavioral science'],
+            'biology': ['biology', 'life sciences', 'biotechnology', 'biochemistry', 'microbiology'],
+            'chemistry': ['chemistry', 'chemical sciences'],
+            'physics': ['physics', 'physical sciences', 'astronomy', 'astrophysics'],
+            'mathematics': ['mathematics', 'math', 'statistics', 'applied mathematics'],
+            'education': ['education', 'teaching', 'teacher', 'pedagogy'],
+            'art': ['art', 'fine arts', 'visual arts', 'design', 'graphic design'],
+            'literature': ['literature', 'english literature', 'creative writing', 'linguistics'],
+            'history': ['history', 'historical studies', 'archaeology'],
+            'political science': ['political science', 'politics', 'international relations', 'public policy']
+        }
+        
+        # Canadian provinces for location matching
+        self.canadian_provinces = [
+            'british columbia', 'bc', 'new brunswick', 'nb', 'newfoundland', 'nl',
+            'nova scotia', 'ns', 'ontario', 'on', 'prince edward island', 'pei',
+            'quebec', 'qc', 'saskatchewan', 'sk', 'alberta', 'ab', 'manitoba', 'mb'
+        ]
+        
+        # Enhanced intent patterns
         self.intent_patterns = {
             'greeting': [
-                r'\b(hi|hello|hey|good morning|good afternoon|good evening)\b',
-                r'\b(start|begin|help)\b'
+                r'\b(hi|hello|hey|good morning|good afternoon|good evening|start|begin|help)\b'
             ],
             'field_of_study': [
-                r'\b(study|major|field|course|program|subject|engineering|computer science|business|medicine|law)\b',
-                r'\b(want to study|interested in|planning to study)\b'
+                r'\b(study|major|field|course|program|subject|degree in)\b',
+                r'\b(want to study|interested in|planning to study|looking for)\b'
             ],
             'location': [
-                r'\b(location|place|city|state|country|where|geographical)\b',
-                r'\b(prefer|want|like)\s+.*\b(location|place|city|state)\b'
+                r'\b(location|place|city|province|country|where|in)\b',
+                r'\b(prefer|want|like)\s+.*\b(location|place|city|province)\b'
             ],
             'budget': [
                 r'\b(budget|cost|money|expensive|cheap|afford|financial|tuition|fees)\b',
                 r'\b(how much|price|scholarship|funding)\b'
             ],
             'degree_level': [
-                r'\b(bachelor|master|phd|doctorate|undergraduate|graduate|degree)\b',
-                r'\b(bachelors|masters|doctoral)\b'
-            ],
-            'academic_profile': [
-                r'\b(gpa|grade|score|sat|act|gre|gmat|toefl|ielts)\b',
-                r'\b(academic|performance|achievement)\b'
-            ],
-            'international': [
-                r'\b(international|foreign|visa|overseas|abroad)\b',
-                r'\b(not from|outside|different country)\b'
-            ],
-            'recommendation_request': [
-                r'\b(recommend|suggest|show|find|best|top|good)\b.*\b(university|college|school)\b',
-                r'\b(what.*university|which.*college|where.*study)\b'
+                r'\b(bachelor|master|phd|doctorate|undergraduate|graduate|degree)\b'
             ],
             'yes': [r'\b(yes|yeah|yep|sure|ok|okay|definitely|absolutely)\b'],
-            'no': [r'\b(no|nope|not|never|none)\b'],
-            'more_info': [r'\b(more|tell me|information|details|about)\b']
-        }
-        
-        # Entity extraction patterns
-        self.entity_patterns = {
-            'field_of_study': [
-                'computer science', 'engineering', 'business', 'medicine', 'law',
-                'psychology', 'biology', 'chemistry', 'physics', 'mathematics',
-                'economics', 'political science', 'history', 'literature', 'art'
-            ],
-            'location': [
-                'usa', 'united states', 'uk', 'united kingdom', 'canada', 'australia',
-                'germany', 'france', 'california', 'new york', 'texas', 'florida'
-            ],
-            'degree_level': [
-                'bachelor', 'master', 'phd', 'doctorate', 'undergraduate', 'graduate'
-            ],
-            'budget_range': [
-                'under 10000', 'under 20000', 'under 30000', 'under 50000',
-                'no limit', 'high budget', 'low budget', 'medium budget'
-            ]
+            'no': [r'\b(no|nope|not|never|none)\b']
         }
     
-    def preprocess_text(self, text: str) -> str:
-        """Preprocess text for NLP analysis"""
-        text = text.lower()
-        text = re.sub(r'[^\w\s]', '', text)
-        tokens = word_tokenize(text)
-        tokens = [self.lemmatizer.lemmatize(token) for token in tokens 
-                 if token not in self.stop_words and len(token) > 2]
-        return ' '.join(tokens)
+    def extract_field_of_study(self, text: str) -> Optional[str]:
+        """Enhanced field of study extraction"""
+        text_lower = text.lower()
+        
+        # Check for direct matches first
+        for field, patterns in self.field_patterns.items():
+            for pattern in patterns:
+                if pattern in text_lower:
+                    return field
+        
+        # Check for partial matches or synonyms
+        words = text_lower.split()
+        for field, patterns in self.field_patterns.items():
+            for pattern in patterns:
+                pattern_words = pattern.split()
+                if any(word in words for word in pattern_words):
+                    return field
+        
+        return None
+    
+    def extract_location(self, text: str) -> Optional[str]:
+        """Extract Canadian province from text"""
+        text_lower = text.lower()
+        
+        for province in self.canadian_provinces:
+            if province in text_lower:
+                # Map abbreviations to full names
+                province_map = {
+                    'bc': 'British Columbia',
+                    'nb': 'New Brunswick',
+                    'nl': 'Newfoundland',
+                    'ns': 'Nova Scotia',
+                    'on': 'Ontario',
+                    'pei': 'Prince Edward Island',
+                    'qc': 'Quebec',
+                    'sk': 'Saskatchewan',
+                    'ab': 'Alberta',
+                    'mb': 'Manitoba'
+                }
+                return province_map.get(province, province.title())
+        
+        # Check for "canada" or general location mentions
+        if 'canada' in text_lower:
+            return 'Canada'
+        
+        return None
     
     def extract_intent(self, text: str) -> str:
         """Extract user intent from text"""
@@ -207,150 +236,200 @@ class NLPEngine:
         
         return 'general'
     
-    def extract_entities(self, text: str) -> Dict[str, List[str]]:
-        """Extract entities from text"""
-        entities = {}
-        text = text.lower()
+    def generate_response(self, intent: str, message: str, stage: str, preferences: UserPreferences, 
+                         session_history: List[Dict[str, str]]) -> Dict:
+        """Generate appropriate response based on intent, message, and context"""
         
-        for entity_type, values in self.entity_patterns.items():
-            found_entities = []
-            for value in values:
-                if value in text:
-                    found_entities.append(value)
-            if found_entities:
-                entities[entity_type] = found_entities
-        
-        return entities
-    
-    def generate_response(self, intent: str, entities: Dict, stage: str, preferences: UserPreferences) -> Dict:
-        """Generate appropriate response based on intent and context"""
-        
-        if intent == 'greeting' or stage == ConversationStage.GREETING.value:
+        # Check if this is the very first interaction (empty history)
+        if len(session_history) == 0:
             return {
-                'response': "Hello! I'm here to help you find the perfect university for your studies. Let's start by learning more about what you're looking for. What field would you like to study?",
+                'response': "Hello! I'm here to help you find the perfect university for your studies in Canada. Let's start by learning more about what you're looking for. What field would you like to study?",
                 'stage': ConversationStage.FIELD_OF_STUDY.value,
-                'questions': ['What field of study are you interested in?']
+                'questions': []
             }
         
+        # Handle field of study stage
         elif stage == ConversationStage.FIELD_OF_STUDY.value:
-            if 'field_of_study' in entities:
-                field = entities['field_of_study'][0]
+            field = self.extract_field_of_study(message)
+            if field:
                 return {
-                    'response': f"Great! You're interested in {field}. Where would you prefer to study? Any specific country or region?",
+                    'response': f"Great! You're interested in {field}. Which Canadian province would you prefer to study in? For example: Ontario, British Columbia, Quebec, Alberta, etc.",
                     'stage': ConversationStage.LOCATION.value,
-                    'questions': ['Which country or region would you prefer?']
+                    'questions': []
                 }
             else:
                 return {
-                    'response': "I'd love to help you find the right field! Could you tell me more about your interests? For example: engineering, business, medicine, computer science, etc.",
+                    'response': "I'd love to help you find the right field! Could you be more specific? For example: computer science, engineering, business, medicine, law, psychology, etc.",
                     'stage': ConversationStage.FIELD_OF_STUDY.value,
-                    'questions': ['What subjects or careers interest you most?']
+                    'questions': []
                 }
         
+        # Handle location stage
         elif stage == ConversationStage.LOCATION.value:
-            if 'location' in entities:
-                location = entities['location'][0]
+            location = self.extract_location(message)
+            if location:
                 return {
-                    'response': f"Excellent! You're interested in studying in {location}. What's your budget range for tuition and living expenses?",
+                    'response': f"Perfect! You're interested in studying in {location}. What's your budget range for tuition? (e.g., under $20,000, under $30,000, under $50,000, or no specific limit)",
                     'stage': ConversationStage.BUDGET.value,
-                    'questions': ['What is your budget range?', 'Do you need financial aid or scholarships?']
+                    'questions': []
                 }
             else:
                 return {
-                    'response': "No worries! Location can be flexible. What about your budget? Are you looking for affordable options or do you have a specific budget range in mind?",
+                    'response': "No worries about the location! What's your budget range for tuition? (e.g., under $20,000, under $30,000, under $50,000, or no specific limit)",
                     'stage': ConversationStage.BUDGET.value,
-                    'questions': ['What is your budget range?']
+                    'questions': []
                 }
         
+        # Handle budget stage
         elif stage == ConversationStage.BUDGET.value:
             return {
                 'response': "Thanks for that information! What level of degree are you looking for? Bachelor's, Master's, or PhD?",
                 'stage': ConversationStage.DEGREE_LEVEL.value,
-                'questions': ['What degree level are you seeking?']
+                'questions': []
             }
         
+        # Handle degree level stage
         elif stage == ConversationStage.DEGREE_LEVEL.value:
             return {
-                'response': "Perfect! Could you share your academic profile? What's your GPA and any test scores (SAT, ACT, GRE, etc.)?",
-                'stage': ConversationStage.ACADEMIC_PROFILE.value,
-                'questions': ['What is your GPA?', 'Do you have any standardized test scores?']
-            }
-        
-        elif stage == ConversationStage.ACADEMIC_PROFILE.value:
-            return {
-                'response': "Thanks! One more question: Are you an international student? This helps me find universities with good international support.",
+                'response': "Perfect! Are you an international student? This helps me find universities with good international support and appropriate programs.",
                 'stage': ConversationStage.INTERNATIONAL_STATUS.value,
-                'questions': ['Are you an international student?']
+                'questions': []
             }
         
+        # Handle international status stage
+        elif stage == ConversationStage.INTERNATIONAL_STATUS.value:
+            return {
+                'response': "Excellent! Based on your preferences, let me find some great university recommendations for you!",
+                'stage': ConversationStage.PROVIDING_RECOMMENDATIONS.value,
+                'questions': []
+            }
+        
+        # Handle providing recommendations stage
+        elif stage == ConversationStage.PROVIDING_RECOMMENDATIONS.value:
+            return {
+                'response': "Here are some university recommendations based on your preferences. Would you like more information about any of these universities or would you like to modify your search criteria?",
+                'stage': ConversationStage.FOLLOW_UP.value,
+                'questions': []
+            }
+        
+        # Default response for other cases
         else:
             return {
-                'response': "Based on your preferences, let me find some great university recommendations for you!",
+                'response': "I understand. Let me help you find the best universities based on your preferences!",
                 'stage': ConversationStage.PROVIDING_RECOMMENDATIONS.value,
                 'questions': []
             }
 
-# Recommendation Engine
+# Enhanced Recommendation Engine
 class RecommendationEngine:
     def __init__(self):
         self.universities = []
-        self.vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
         
     async def load_universities(self, db):
-        """Load universities from database"""
-        cursor = db.universities.find({})
-        self.universities = await cursor.to_list(length=None)
+        """Load universities from all province collections"""
+        self.universities = []
+        
+        # List of province collections based on your actual database structure
+        provinces = [
+            'British columbia', 'New Brunswick', 'Newfoundland', 'Nova scotia',
+            'Ontario', 'Prince Edward island', 'Quebec', 'Saskatchewan', 
+            'alberta', 'manitoba'
+        ]
+        
+        for province in provinces:
+            try:
+                # Use the collection name exactly as it appears in MongoDB
+                cursor = db[province].find({})
+                province_universities = await cursor.to_list(length=None)
+                
+                # Add province information to each university
+                for uni in province_universities:
+                    uni['province'] = province
+                    self.universities.append(uni)
+                
+                logger.info(f"Loaded {len(province_universities)} universities from {province}")
+            except Exception as e:
+                logger.warning(f"Could not load universities from {province}: {e}")
+        
+        logger.info(f"Total universities loaded: {len(self.universities)}")
         
     def calculate_match_score(self, university: Dict, preferences: UserPreferences) -> float:
         """Calculate match score between university and user preferences"""
         score = 0.0
         max_score = 0.0
         
-        # Field of study matching
+        # Field of study matching (40% weight)
         if preferences.field_of_study:
-            max_score += 30
-            if any(preferences.field_of_study.lower() in program.lower() 
-                  for program in university.get('programs', [])):
-                score += 30
-        
-        # Location matching
-        if preferences.location_preference:
-            max_score += 20
-            if preferences.location_preference.lower() in university.get('location', '').lower():
+            max_score += 40
+            # Check if university has programs field, otherwise use name for matching
+            programs = university.get('programs', [])
+            if not programs:
+                # If no programs field, check the university name for field matches
+                programs = [university.get('name', '')]
+            
+            if isinstance(programs, list):
+                program_text = ' '.join(str(p) for p in programs).lower()
+            else:
+                program_text = str(programs).lower()
+            
+            if preferences.field_of_study.lower() in program_text:
+                score += 40
+            # Partial matching for common field keywords
+            elif any(keyword in program_text for keyword in ['engineering', 'computer', 'business', 'science']):
                 score += 20
         
-        # Budget matching
-        if preferences.budget_range and university.get('tuition_fees'):
-            max_score += 25
-            tuition = university['tuition_fees'].get('international', 
-                     university['tuition_fees'].get('domestic', 0))
-            if self._is_within_budget(tuition, preferences.budget_range):
-                score += 25
+        # Location matching (30% weight)
+        if preferences.location_preference:
+            max_score += 30
+            # Check both province and city fields
+            uni_province = university.get('province', '').lower()
+            uni_city = university.get('city', '').lower()
+            pref_location = preferences.location_preference.lower()
+            
+            if pref_location in uni_province or uni_province in pref_location:
+                score += 30
+            elif pref_location in uni_city or uni_city in pref_location:
+                score += 20
         
-        # Degree level matching
-        if preferences.degree_level:
+        # University size preference (15% weight)
+        if preferences.preferred_size:
             max_score += 15
-            if preferences.degree_level.lower() in str(university.get('programs', [])).lower():
+            student_count = university.get('number_of_students', 0)
+            if student_count:
+                if preferences.preferred_size == 'small' and student_count < 10000:
+                    score += 15
+                elif preferences.preferred_size == 'medium' and 10000 <= student_count < 25000:
+                    score += 15
+                elif preferences.preferred_size == 'large' and student_count >= 25000:
+                    score += 15
+        
+        # International student support (15% weight)
+        if preferences.international_student is not None:
+            max_score += 15
+            # Assume larger universities have better international support
+            student_count = university.get('number_of_students', 0)
+            if preferences.international_student and student_count > 15000:
+                score += 15
+            elif not preferences.international_student:
                 score += 15
         
-        # International student support
-        if preferences.international_student:
-            max_score += 10
-            if university.get('international_support', False):
-                score += 10
-        
-        return (score / max_score * 100) if max_score > 0 else 0
+        return (score / max_score * 100) if max_score > 0 else 60  # Default 60% if no specific criteria
     
     def _is_within_budget(self, tuition: float, budget_range: str) -> bool:
         """Check if tuition is within budget range"""
-        budget_map = {
-            'under 10000': 10000,
+        if not tuition or tuition == 0:
+            return True  # If no tuition info, assume it's within budget
+        
+        budget_limits = {
             'under 20000': 20000,
             'under 30000': 30000,
             'under 50000': 50000,
-            'no limit': float('inf')
+            'no limit': float('inf'),
+            'no specific limit': float('inf')
         }
-        return tuition <= budget_map.get(budget_range, float('inf'))
+        
+        limit = budget_limits.get(budget_range.lower(), float('inf'))
+        return tuition <= limit
     
     async def get_recommendations(self, preferences: UserPreferences, limit: int = 5) -> List[Dict]:
         """Get university recommendations based on preferences"""
@@ -361,14 +440,41 @@ class RecommendationEngine:
         scored_universities = []
         for university in self.universities:
             score = self.calculate_match_score(university, preferences)
-            if score > 0:
-                university_with_score = university.copy()
-                university_with_score['match_score'] = score
-                scored_universities.append(university_with_score)
+            university_with_score = university.copy()
+            university_with_score['match_score'] = score
+            
+            # Clean the document for JSON serialization - remove ObjectId and other non-serializable fields
+            university_with_score = self._clean_document(university_with_score)
+            
+            scored_universities.append(university_with_score)
         
         # Sort by score and return top recommendations
         scored_universities.sort(key=lambda x: x['match_score'], reverse=True)
         return scored_universities[:limit]
+    
+    def _clean_document(self, doc: Dict) -> Dict:
+        """Clean MongoDB document for JSON serialization"""
+        cleaned = {}
+        for key, value in doc.items():
+            if key == '_id':
+                # Convert ObjectId to string or skip it
+                continue
+            elif hasattr(value, '__dict__') and hasattr(value, '__class__'):
+                # Skip complex objects that can't be serialized
+                continue
+            elif isinstance(value, list):
+                # Clean list items
+                cleaned[key] = [self._clean_value(item) for item in value]
+            else:
+                cleaned[key] = self._clean_value(value)
+        return cleaned
+    
+    def _clean_value(self, value):
+        """Clean individual values for JSON serialization"""
+        if hasattr(value, '__dict__') and hasattr(value, '__class__'):
+            # Convert complex objects to string
+            return str(value)
+        return value
 
 # Database Manager
 class DatabaseManager:
@@ -383,7 +489,7 @@ class DatabaseManager:
             self.db = self.client[settings.DATABASE_NAME]
             # Test connection
             await self.client.admin.command('ping')
-            logger.info("Connected to MongoDB successfully")
+            logger.info(f"Connected to MongoDB successfully. Database: {settings.DATABASE_NAME}")
         except Exception as e:
             logger.error(f"Failed to connect to MongoDB: {e}")
             raise
@@ -394,19 +500,20 @@ class DatabaseManager:
             self.client.close()
     
     async def create_indexes(self):
-        """Create database indexes"""
-        await self.db.universities.create_index([("name", 1)])
-        await self.db.universities.create_index([("location", 1)])
-        await self.db.universities.create_index([("programs", 1)])
-        await self.db.sessions.create_index([("session_id", 1)])
-        await self.db.sessions.create_index([("created_at", 1)], expireAfterSeconds=3600*24)  # 24 hours
+        """Create database indexes for session management"""
+        try:
+            await self.db.sessions.create_index([("session_id", 1)])
+            await self.db.sessions.create_index([("created_at", 1)], expireAfterSeconds=3600*24)  # 24 hours
+            logger.info("Session indexes created successfully")
+        except Exception as e:
+            logger.warning(f"Could not create indexes: {e}")
     
     async def save_session(self, session: UserSession):
         """Save user session to database"""
         session_dict = {
             "session_id": session.session_id,
             "user_id": session.user_id,
-            "preferences": session.preferences.dict(),
+            "preferences": session.preferences.model_dump(),  # Updated from .dict()
             "conversation_history": session.conversation_history,
             "current_stage": session.current_stage,
             "created_at": session.created_at,
@@ -432,21 +539,6 @@ class DatabaseManager:
                 updated_at=session_data["updated_at"]
             )
         return None
-    
-    async def load_universities_from_json(self, json_file_path: str):
-        """Load universities from JSON file to database"""
-        try:
-            with open(json_file_path, 'r', encoding='utf-8') as file:
-                universities_data = json.load(file)
-            
-            if isinstance(universities_data, list):
-                await self.db.universities.delete_many({})  # Clear existing data
-                await self.db.universities.insert_many(universities_data)
-                logger.info(f"Loaded {len(universities_data)} universities from JSON")
-            else:
-                logger.error("JSON file should contain a list of universities")
-        except Exception as e:
-            logger.error(f"Error loading universities from JSON: {e}")
 
 # Chatbot Controller
 class ChatbotController:
@@ -458,128 +550,142 @@ class ChatbotController:
     async def process_message(self, message: str, session_id: str = None) -> ChatResponse:
         """Process user message and generate response"""
         
-        # Get or create session
-        if session_id:
-            session = await self.db_manager.get_session(session_id)
-        else:
-            session = None
-        
-        if not session:
-            session_id = str(uuid.uuid4())
-            session = UserSession(
-                session_id=session_id,
-                preferences=UserPreferences(),
-                conversation_history=[],
-                current_stage=ConversationStage.GREETING.value,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+        try:
+            # Get or create session
+            if session_id:
+                session = await self.db_manager.get_session(session_id)
+            else:
+                session = None
+            
+            if not session:
+                session_id = str(uuid.uuid4())
+                session = UserSession(
+                    session_id=session_id,
+                    preferences=UserPreferences(),
+                    conversation_history=[],
+                    current_stage=ConversationStage.GREETING.value,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow()
+                )
+            
+            # Extract intent
+            intent = self.nlp_engine.extract_intent(message)
+            
+            # Update preferences based on message and current stage
+            await self._update_preferences(session.preferences, message, session.current_stage)
+            
+            # Generate response
+            response_data = self.nlp_engine.generate_response(
+                intent, message, session.current_stage, session.preferences, session.conversation_history
             )
-        
-        # Extract intent and entities
-        intent = self.nlp_engine.extract_intent(message)
-        entities = self.nlp_engine.extract_entities(message)
-        
-        # Update preferences based on entities
-        await self._update_preferences(session.preferences, entities, message)
-        
-        # Generate response
-        response_data = self.nlp_engine.generate_response(
-            intent, entities, session.current_stage, session.preferences
-        )
-        
-        # Update session
-        session.conversation_history.append({
-            "user": message,
-            "assistant": response_data['response'],
-            "timestamp": datetime.utcnow().isoformat()
-        })
-        session.current_stage = response_data['stage']
-        session.updated_at = datetime.utcnow()
-        
-        # Get recommendations if ready
-        recommendations = []
-        if session.current_stage == ConversationStage.PROVIDING_RECOMMENDATIONS.value:
-            recommendations = await self.recommendation_engine.get_recommendations(session.preferences)
-        
-        # Save session
-        await self.db_manager.save_session(session)
-        
-        return ChatResponse(
-            response=response_data['response'],
-            session_id=session.session_id,
-            recommendations=recommendations,
-            follow_up_questions=response_data.get('questions', []),
-            conversation_stage=session.current_stage
-        )
+            
+            # Update session with user message first
+            session.conversation_history.append({
+                "user": message,
+                "assistant": response_data['response'],
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            session.current_stage = response_data['stage']
+            session.updated_at = datetime.utcnow()
+            
+            # Get recommendations if ready
+            recommendations = []
+            if session.current_stage == ConversationStage.PROVIDING_RECOMMENDATIONS.value:
+                try:
+                    recommendations = await self.recommendation_engine.get_recommendations(session.preferences)
+                    logger.info(f"Generated {len(recommendations)} recommendations")
+                except Exception as e:
+                    logger.error(f"Error getting recommendations: {e}")
+                    recommendations = []
+            
+            # Save session
+            await self.db_manager.save_session(session)
+            
+            return ChatResponse(
+                response=response_data['response'],
+                session_id=session.session_id,
+                recommendations=recommendations,
+                follow_up_questions=response_data.get('questions', []),
+                conversation_stage=session.current_stage
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in process_message: {e}")
+            # Return a safe error response
+            return ChatResponse(
+                response="I apologize, but I encountered an error. Let's try again. What would you like to know about universities?",
+                session_id=session_id or str(uuid.uuid4()),
+                recommendations=[],
+                follow_up_questions=[],
+                conversation_stage=ConversationStage.GREETING.value
+            )
     
-    async def _update_preferences(self, preferences: UserPreferences, entities: Dict, message: str):
-        """Update user preferences based on extracted entities and message"""
+    async def _update_preferences(self, preferences: UserPreferences, message: str, current_stage: str):
+        """Update user preferences based on message and conversation stage"""
         
-        # Update field of study
-        if 'field_of_study' in entities:
-            preferences.field_of_study = entities['field_of_study'][0]
+        message_lower = message.lower().strip()
         
-        # Update location
-        if 'location' in entities:
-            preferences.location_preference = entities['location'][0]
-        
-        # Update budget (extract from message)
-        budget_patterns = {
-            r'under.*?(\d+)': lambda x: f"under {x}",
-            r'less.*?(\d+)': lambda x: f"under {x}",
-            r'no.*?limit': lambda x: "no limit",
-            r'unlimited': lambda x: "no limit"
-        }
-        
-        for pattern, formatter in budget_patterns.items():
-            match = re.search(pattern, message.lower())
-            if match:
-                if 'under' in pattern or 'less' in pattern:
-                    preferences.budget_range = formatter(match.group(1))
-                else:
-                    preferences.budget_range = formatter(None)
-                break
-        
-        # Update degree level
-        if 'degree_level' in entities:
-            preferences.degree_level = entities['degree_level'][0]
-        
-        # Update international status
-        if any(word in message.lower() for word in ['international', 'foreign', 'abroad']):
-            preferences.international_student = True
-        elif any(word in message.lower() for word in ['domestic', 'local', 'same country']):
-            preferences.international_student = False
-        
-        # Extract GPA
-        gpa_match = re.search(r'gpa.*?(\d+\.?\d*)', message.lower())
-        if gpa_match:
-            preferences.gpa = float(gpa_match.group(1))
-        
-        # Extract test scores
-        test_patterns = {
-            'sat': r'sat.*?(\d+)',
-            'act': r'act.*?(\d+)',
-            'gre': r'gre.*?(\d+)',
-            'gmat': r'gmat.*?(\d+)',
-            'toefl': r'toefl.*?(\d+)',
-            'ielts': r'ielts.*?(\d+\.?\d*)'
-        }
-        
-        test_scores = {}
-        for test, pattern in test_patterns.items():
-            match = re.search(pattern, message.lower())
-            if match:
-                test_scores[test] = int(float(match.group(1)))
-        
-        if test_scores:
-            preferences.test_scores = test_scores
+        try:
+            # Update field of study
+            if current_stage == ConversationStage.FIELD_OF_STUDY.value:
+                field = self.nlp_engine.extract_field_of_study(message)
+                if field:
+                    preferences.field_of_study = field
+                    logger.info(f"Updated field of study: {field}")
+            
+            # Update location
+            elif current_stage == ConversationStage.LOCATION.value:
+                location = self.nlp_engine.extract_location(message)
+                if location:
+                    preferences.location_preference = location
+                    logger.info(f"Updated location: {location}")
+            
+            # Update budget
+            elif current_stage == ConversationStage.BUDGET.value:
+                budget_patterns = {
+                    r'under.*?20': 'under 20000',
+                    r'under.*?30': 'under 30000',
+                    r'under.*?50': 'under 50000',
+                    r'no.*?limit': 'no limit',
+                    r'unlimited': 'no limit',
+                    r'any.*?amount': 'no limit'
+                }
+                
+                for pattern, budget_range in budget_patterns.items():
+                    if re.search(pattern, message_lower):
+                        preferences.budget_range = budget_range
+                        logger.info(f"Updated budget: {budget_range}")
+                        break
+            
+            # Update degree level
+            elif current_stage == ConversationStage.DEGREE_LEVEL.value:
+                if any(word in message_lower for word in ['bachelor', 'undergraduate']):
+                    preferences.degree_level = 'bachelor'
+                elif any(word in message_lower for word in ['master', 'graduate', 'msc', 'ma']):
+                    preferences.degree_level = 'master'
+                elif any(word in message_lower for word in ['phd', 'doctorate', 'doctoral']):
+                    preferences.degree_level = 'phd'
+                logger.info(f"Updated degree level: {preferences.degree_level}")
+            
+            # Update international status
+            elif current_stage == ConversationStage.INTERNATIONAL_STATUS.value:
+                if any(word in message_lower for word in ['yes', 'international', 'foreign', 'abroad', 'outside']):
+                    preferences.international_student = True
+                    logger.info("Updated international status: True")
+                elif any(word in message_lower for word in ['no', 'domestic', 'local', 'canadian']):
+                    preferences.international_student = False
+                    logger.info("Updated international status: False")
+                    
+        except Exception as e:
+            logger.error(f"Error updating preferences: {e}")
+            # Continue without crashing
 
 # Initialize components
 db_manager = DatabaseManager()
 recommendation_engine = RecommendationEngine()
 chatbot_controller = ChatbotController(db_manager, recommendation_engine)
 
-# Lifespan event handler (replaces deprecated on_event)
+# Lifespan event handler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle application lifespan events"""
@@ -591,8 +697,6 @@ async def lifespan(app: FastAPI):
         logger.info("Application started successfully")
     except Exception as e:
         logger.error(f"Failed to start application: {e}")
-        # You can choose to raise the exception to prevent startup
-        # raise e
     
     yield
     
@@ -631,10 +735,38 @@ async def chat(message: ChatMessage):
             message.message, 
             message.session_id
         )
+        
+        # Ensure all data is JSON serializable
+        if response.recommendations:
+            # Clean recommendations data
+            cleaned_recommendations = []
+            for rec in response.recommendations:
+                cleaned_rec = {}
+                for key, value in rec.items():
+                    if key == '_id':
+                        continue  # Skip ObjectId
+                    elif hasattr(value, '__dict__'):
+                        cleaned_rec[key] = str(value)  # Convert complex objects to string
+                    else:
+                        cleaned_rec[key] = value
+                cleaned_recommendations.append(cleaned_rec)
+            response.recommendations = cleaned_recommendations
+        
         return response
+        
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        import traceback
+        traceback.print_exc()
+        
+        # Return a safe error response
+        return ChatResponse(
+            response="I apologize, but I encountered an error while processing your request. Please try again.",
+            session_id=message.session_id or str(uuid.uuid4()),
+            recommendations=[],
+            follow_up_questions=[],
+            conversation_stage="greeting"
+        )
 
 @app.get("/recommendations/{session_id}")
 async def get_recommendations(session_id: str):
@@ -662,7 +794,7 @@ async def get_session(session_id: str):
         
         return {
             "session_id": session.session_id,
-            "preferences": session.preferences.dict(),
+            "preferences": session.preferences.model_dump(),  # Updated from .dict()
             "conversation_history": session.conversation_history,
             "current_stage": session.current_stage
         }
@@ -672,24 +804,36 @@ async def get_session(session_id: str):
         logger.error(f"Error getting session: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.post("/admin/load-universities")
-async def load_universities(file_path: str):
-    """Admin endpoint to load universities from JSON file"""
-    try:
-        await db_manager.load_universities_from_json(file_path)
-        await recommendation_engine.load_universities(db_manager.db)
-        return {"message": "Universities loaded successfully"}
-    except Exception as e:
-        logger.error(f"Error loading universities: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load universities")
-
 @app.get("/universities")
 async def get_universities(limit: int = Query(50, ge=1, le=100)):
-    """Get list of universities"""
+    """Get list of universities from all provinces"""
     try:
-        cursor = db_manager.db.universities.find({}).limit(limit)
-        universities = await cursor.to_list(length=limit)
-        return {"universities": universities}
+        universities = []
+        provinces = [
+            'British columbia', 'New Brunswick', 'Newfoundland', 'Nova scotia',
+            'Ontario', 'Prince Edward island', 'Quebec', 'Saskatchewan', 
+            'alberta', 'manitoba'
+        ]
+        
+        count = 0
+        for province in provinces:
+            if count >= limit:
+                break
+            try:
+                # Use collection name as-is
+                cursor = db_manager.db[province].find({}).limit(limit - count)
+                province_universities = await cursor.to_list(length=limit - count)
+                
+                for uni in province_universities:
+                    uni['province'] = province
+                    universities.append(uni)
+                    count += 1
+                    if count >= limit:
+                        break
+            except Exception as e:
+                logger.warning(f"Could not fetch from {province}: {e}")
+        
+        return {"universities": universities, "total": count}
     except Exception as e:
         logger.error(f"Error getting universities: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

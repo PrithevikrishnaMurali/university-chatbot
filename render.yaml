@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: university-chatbot-api
+    env: python
+    buildCommand: pip install -r requirements.txt && python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords'); nltk.download('wordnet')"
+    startCommand: python main.py
+    envVars:
+      - key: MONGODB_URL
+        sync: false
+      - key: DATABASE_NAME
+        value: University_data
+      - key: DEBUG
+        value: "False"
+      - key: PORT
+        value: "8000"
+    healthCheckPath: /health
+    
+  - type: static
+    name: university-chatbot-frontend
+    buildCommand: echo "No build needed"
+    staticPublishPath: .
+    envVars:
+      - key: API_URL
+        fromService:
+          type: web
+          name: university-chatbot-api
+          property: host
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://university-chatbot-api.onrender.com/*
