@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>University Recommendation Chatbot</title>
+    <title>UNIchat</title>
     <style>
         * {
             margin: 0;
@@ -319,18 +319,6 @@
             font-style: italic;
         }
 
-        .environment-indicator {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.7em;
-            font-weight: 500;
-        }
-
         @media (max-width: 768px) {
             .chat-container {
                 width: 95%;
@@ -356,7 +344,6 @@
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <div class="environment-indicator" id="envIndicator">Local</div>
             <div class="status-indicator" id="statusIndicator"></div>
             <h1>🎓 University Recommendation Chatbot</h1>
             <p>Find your perfect Canadian university match</p>
@@ -394,7 +381,7 @@
     <script>
         class UniversityChatbot {
             constructor() {
-                this.apiUrl = this.getApiUrl();
+                this.apiUrl = 'http://localhost:8000';
                 this.sessionId = null;
                 this.messagesContainer = document.getElementById('chatMessages');
                 this.messageInput = document.getElementById('messageInput');
@@ -402,58 +389,18 @@
                 this.chatForm = document.getElementById('chatForm');
                 this.typingIndicator = document.getElementById('typingIndicator');
                 this.statusIndicator = document.getElementById('statusIndicator');
-                this.envIndicator = document.getElementById('envIndicator');
                 this.conversationStage = 'greeting';
                 this.hasStarted = false;
 
                 this.initializeEventListeners();
-                this.setEnvironmentIndicator();
                 this.checkApiStatus();
                 this.addInitialMessage();
             }
 
-            getApiUrl() {
-                // Determine API URL based on environment
-                const hostname = window.location.hostname;
-                const port = window.location.port;
-                
-                if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                    // Local development
-                    return 'http://localhost:8000';
-                } else if (hostname.includes('vercel.app')) {
-                    // Vercel deployment
-                    return `${window.location.protocol}//${hostname}/api`;
-                } else if (hostname.includes('render.com')) {
-                    // Render deployment
-                    return `${window.location.protocol}//${hostname}/api`;
-                } else if (hostname.includes('railway.app')) {
-                    // Railway deployment
-                    return `${window.location.protocol}//${hostname}`;
-                } else if (hostname.includes('herokuapp.com')) {
-                    // Heroku deployment
-                    return `${window.location.protocol}//${hostname}`;
-                } else {
-                    // Default to current domain with /api prefix
-                    return `${window.location.protocol}//${hostname}${port ? ':' + port : ''}/api`;
-                }
-            }
-
-            setEnvironmentIndicator() {
-                const hostname = window.location.hostname;
-                let env = 'Local';
-                
-                if (hostname.includes('vercel.app')) env = 'Vercel';
-                else if (hostname.includes('render.com')) env = 'Render';
-                else if (hostname.includes('railway.app')) env = 'Railway';
-                else if (hostname.includes('herokuapp.com')) env = 'Heroku';
-                else if (hostname !== 'localhost' && hostname !== '127.0.0.1') env = 'Production';
-                
-                this.envIndicator.textContent = env;
-            }
-
             addInitialMessage() {
+                // Add the initial bot message
                 this.addMessage(
-                    "Welcome! I'm here to help you find the perfect university for your studies in Canada. Let's start by learning more about what you're looking for. What field would you like to study?", 
+                    "Welcome! I'm here to help you find the perfect university for your studies in Canada. Let's start by learning more about what you're looking for", 
                     'bot', 
                     null, 
                     'greeting'
@@ -476,19 +423,17 @@
 
             async checkApiStatus() {
                 try {
-                    console.log('Checking API status at:', this.apiUrl + '/health');
                     const response = await fetch(`${this.apiUrl}/health`);
                     if (response.ok) {
                         this.statusIndicator.style.background = '#4CAF50';
-                        this.statusIndicator.title = `Connected to ${this.apiUrl}`;
+                        this.statusIndicator.title = 'Connected to server';
                     } else {
                         throw new Error('API not healthy');
                     }
                 } catch (error) {
-                    console.error('API health check failed:', error);
                     this.statusIndicator.style.background = '#f44336';
-                    this.statusIndicator.title = `Disconnected from ${this.apiUrl}`;
-                    this.showError(`Unable to connect to chatbot server at ${this.apiUrl}. Please check if the server is running.`);
+                    this.statusIndicator.title = 'Disconnected from server';
+                    this.showError('Unable to connect to chatbot server. Please make sure the API is running on port 8000.');
                 }
             }
 
@@ -496,11 +441,19 @@
                 const message = this.messageInput.value.trim();
                 if (!message) return;
 
+                // Mark that conversation has started
                 this.hasStarted = true;
+
+                // Disable input
                 this.setInputState(false);
                 
+                // Add user message to chat
                 this.addMessage(message, 'user');
+                
+                // Clear input
                 this.messageInput.value = '';
+                
+                // Show typing indicator
                 this.showTyping(true);
 
                 try {
@@ -509,8 +462,7 @@
                         session_id: this.sessionId
                     };
 
-                    console.log('Sending request to:', this.apiUrl + '/chat');
-                    console.log('Request body:', requestBody);
+                    console.log('Sending request:', requestBody);
 
                     const response = await fetch(`${this.apiUrl}/chat`, {
                         method: 'POST',
@@ -521,24 +473,28 @@
                     });
 
                     if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`HTTP ${response.status}: ${errorText}`);
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
 
                     const data = await response.json();
                     console.log('Received response:', data);
                     
+                    // Update session ID
                     this.sessionId = data.session_id;
                     this.conversationStage = data.conversation_stage;
                     
+                    // Hide typing indicator
                     this.showTyping(false);
+                    
+                    // Add bot response
                     this.addMessage(data.response, 'bot', data.recommendations, data.conversation_stage);
                     
                 } catch (error) {
                     console.error('Error sending message:', error);
                     this.showTyping(false);
-                    this.showError(`Failed to connect to the server. Error: ${error.message}`);
+                    this.showError('Sorry, I encountered an error. Please check that the backend server is running on port 8000.');
                 } finally {
+                    // Re-enable input
                     this.setInputState(true);
                     this.messageInput.focus();
                 }
@@ -556,6 +512,7 @@
                 messageContent.className = 'message-content';
                 messageContent.innerHTML = content;
 
+                // Add conversation stage indicator for bot messages
                 if (sender === 'bot' && stage) {
                     const stageDiv = document.createElement('div');
                     stageDiv.className = 'conversation-stage';
@@ -571,6 +528,7 @@
                     messageDiv.appendChild(avatar);
                 }
 
+                // Add recommendations if present
                 if (recommendations && recommendations.length > 0) {
                     const recommendationsDiv = document.createElement('div');
                     recommendationsDiv.className = 'recommendations';
@@ -601,28 +559,70 @@
                         const details = document.createElement('div');
                         details.className = 'university-details';
                         
-                        if (uni.province || uni.city) {
+                        // Location
+                        if (uni.province || uni.location) {
                             const locationLine = document.createElement('div');
                             locationLine.className = 'detail-line';
-                            locationLine.innerHTML = `<span class="detail-icon">📍</span> ${uni.city || ''} ${uni.province || ''}`.trim();
+                            locationLine.innerHTML = `<span class="detail-icon">📍</span> ${uni.province || uni.location}`;
                             details.appendChild(locationLine);
                         }
                         
-                        if (uni.number_of_students) {
-                            const studentsLine = document.createElement('div');
-                            studentsLine.className = 'detail-line';
-                            studentsLine.innerHTML = `<span class="detail-icon">👥</span> ${uni.number_of_students.toLocaleString()} students`;
-                            details.appendChild(studentsLine);
+                        // Type
+                        if (uni.type) {
+                            const typeLine = document.createElement('div');
+                            typeLine.className = 'detail-line';
+                            typeLine.innerHTML = `<span class="detail-icon">🏛️</span> ${uni.type}`;
+                            details.appendChild(typeLine);
                         }
                         
-                        if (uni.country) {
-                            const countryLine = document.createElement('div');
-                            countryLine.className = 'detail-line';
-                            countryLine.innerHTML = `<span class="detail-icon">🌎</span> ${uni.country}`;
-                            details.appendChild(countryLine);
+                        // Ranking
+                        if (uni.ranking) {
+                            const rankLine = document.createElement('div');
+                            rankLine.className = 'detail-line';
+                            rankLine.innerHTML = `<span class="detail-icon">🏆</span> Ranking: #${uni.ranking}`;
+                            details.appendChild(rankLine);
+                        }
+                        
+                        // Tuition
+                        if (uni.tuition_fees) {
+                            const tuitionLine = document.createElement('div');
+                            tuitionLine.className = 'detail-line';
+                            const fee = uni.tuition_fees.international || uni.tuition_fees.domestic || 'Contact university';
+                            tuitionLine.innerHTML = `<span class="detail-icon">💰</span> Tuition: ${typeof fee === 'number' ? `${fee.toLocaleString()}` : fee}`;
+                            details.appendChild(tuitionLine);
+                        }
+                        
+                        // Website
+                        if (uni.website) {
+                            const websiteLine = document.createElement('div');
+                            websiteLine.className = 'detail-line';
+                            websiteLine.innerHTML = `<span class="detail-icon">🌐</span> <a href="${uni.website}" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: none;">Visit Website</a>`;
+                            details.appendChild(websiteLine);
                         }
                         
                         card.appendChild(details);
+                        
+                        // Programs
+                        if (uni.programs && uni.programs.length > 0) {
+                            const programsDiv = document.createElement('div');
+                            programsDiv.className = 'programs-list';
+                            
+                            const programsTitle = document.createElement('div');
+                            programsTitle.className = 'programs-title';
+                            programsTitle.textContent = '📚 Available Programs:';
+                            programsDiv.appendChild(programsTitle);
+                            
+                            const programsList = document.createElement('div');
+                            const displayPrograms = uni.programs.slice(0, 5);
+                            programsList.textContent = displayPrograms.join(', ');
+                            if (uni.programs.length > 5) {
+                                programsList.textContent += ` (+${uni.programs.length - 5} more)`;
+                            }
+                            programsDiv.appendChild(programsList);
+                            
+                            card.appendChild(programsDiv);
+                        }
+                        
                         recommendationsDiv.appendChild(card);
                     });
 
@@ -661,6 +661,7 @@
             }
         }
 
+        // Initialize chatbot when page loads
         document.addEventListener('DOMContentLoaded', () => {
             new UniversityChatbot();
         });
